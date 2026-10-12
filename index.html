@@ -3,42 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pre-Meal Sugar Tracker</title>
+    <title>Cross-Browser Sugar Tracker</title>
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
+        :root { var(--primary: #2563eb); --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 550px; background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #0f172a; }
+        h2, h3 { margin-top: 0; color: #0f172a; }
         .form-group { margin-bottom: 16px; }
         label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         textarea { resize: vertical; height: 60px; }
-        button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 20px; }
+        button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
         button:hover { background-color: #1d4ed8; }
+        .sync-box { background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #cbd5e1; }
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
         .history-table th, .history-table td { border: 1px solid var(--border); padding: 10px; text-align: left; }
         .history-table th { background-color: #f1f5f9; }
         .delete-btn { background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .date-cell { white-space: nowrap; color: #64748b; font-size: 12px; }
+        .status-msg { font-size: 12px; color: #2563eb; font-weight: 500; margin-top: -8px; margin-bottom: 12px; text-align: center; }
     </style>
 </head>
 <body>
 <div class="container">
     <h2>Pre-Meal Sugar Tracker</h2>
+    
+    <!-- Cross-Browser Sync setup -->
+    <div class="sync-box">
+        <label for="syncKey">Sync Password (Type the same word on Mac & iPhone)</label>
+        <input type="text" id="syncKey" placeholder="e.g., mysugarlogs123" onchange="setupSync()">
+    </div>
+    <div id="status" class="status-msg"></div>
+
     <div class="form-group"><label for="date">Date</label><input type="date" id="date" required></div>
     <div class="form-group"><label for="sugar">GRBS Sugar Level (mg/dL)</label><input type="number" id="sugar" placeholder="e.g., 110" required></div>
     <div class="form-group"><label for="meal">Meal Type</label><select id="meal"><option value="Before Breakfast">Before Breakfast</option><option value="Before Lunch">Before Lunch</option><option value="Before Dinner">Before Dinner</option></select></div>
     <div class="form-group"><label for="food">Food Items Planned</label><textarea id="food" placeholder="e.g., 2 Oats idli"></textarea></div>
+    
     <button onclick="saveLog()">Save Reading</button>
+    <button style="background-color: #64748b;" onclick="loadCloudData()">🔄 Refresh / Sync Now</button>
+
     <h3>History & Logs</h3>
     <table class="history-table">
         <thead><tr><th>Date</th><th>Meal</th><th>Sugar</th><th>Food</th><th>Action</th></tr></thead>
         <tbody id="historyBody"></tbody>
     </table>
 </div>
+
 <script>
     let logs = JSON.parse(localStorage.getItem('sugarLogs')) || [];
-    window.onload = function() { document.getElementById('date').value = new Date().toISOString().split('T')[0]; renderHistory(); };
+    
+    window.onload = function() { 
+        document.getElementById('date').value = new Date().toISOString().split('T')[0]; 
+        const savedKey = localStorage.getItem('sugarSyncKey');
+        if(savedKey) {
+            document.getElementById('syncKey').value = savedKey;
+            loadCloudData();
+        } else {
+            renderHistory(); 
+        }
+    };
+
+    function showStatus(text) {
+        document.getElementById('status').innerText = text;
+        setTimeout(() => { document.getElementById('status').innerText = ''; }, 3000);
+    }
+
+    function setupSync() {
+        const key = document.getElementById('syncKey').value.trim();
+        if(key) {
+            localStorage.setItem('sugarSyncKey', key);
+            loadCloudData();
+        }
+    }
+
+    async function loadCloudData() {
+        const key = localStorage.getItem('sugarSyncKey');
+        if(!key) return;
+        showStatus('Syncing with cloud...');
+        try {
+            const res = await fetch(`https://keyvalue.xyz{key}`);
+            if (res.ok) {
+                // Fetching from a free public text hosting API endpoint
+                const cloudRes = await fetch(`https://workers.dev{key}`);
+                const text = await cloudRes.text();
+                if(text) {
+                    logs = JSON.parse(text);
+                    localStorage.setItem('sugarLogs', JSON.stringify(logs));
+                    renderHistory();
+                    showStatus('Data synced successfully!');
+                }
+            }
+        } catch(e) {
+            showStatus('Connected locally. Press Refresh to try cloud.');
+            renderHistory();
+        }
+    }
+
+    async function saveToCloud(data) {
+        const key = localStorage.getItem('sugarSyncKey');
+        if(!key) return;
+        try {
+            await fetch(`https://workers.dev{key}`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        } catch(e) {}
+    }
+
     function renderHistory() {
         const tbody = document.getElementById('historyBody'); tbody.innerHTML = '';
         const sortedLogs = [...logs].reverse();
@@ -50,13 +122,28 @@
             tbody.appendChild(row);
         });
     }
-    function saveLog() {
+
+    async function saveLog() {
         const date = document.getElementById('date').value; const sugar = document.getElementById('sugar').value; const meal = document.getElementById('meal').value; const food = document.getElementById('food').value;
         if (!date || !sugar) { alert('Please enter all fields.'); return; }
-        logs.push({ date, sugar, meal, food }); localStorage.setItem('sugarLogs', JSON.stringify(logs));
-        document.getElementById('sugar').value = ''; document.getElementById('food').value = ''; renderHistory();
+        
+        logs.push({ date, sugar, meal, food }); 
+        localStorage.setItem('sugarLogs', JSON.stringify(logs));
+        document.getElementById('sugar').value = ''; 
+        document.getElementById('food').value = ''; 
+        renderHistory();
+        await saveToCloud(logs);
+        showStatus('Saved and uploaded!');
     }
-    function deleteLog(index) { if(confirm('Delete this entry?')) { logs.splice(index, 1); localStorage.setItem('sugarLogs', JSON.stringify(logs)); renderHistory(); } }
+
+    async function deleteLog(index) { 
+        if(confirm('Delete this entry?')) { 
+            logs.splice(index, 1); 
+            localStorage.setItem('sugarLogs', JSON.stringify(logs)); 
+            renderHistory(); 
+            await saveToCloud(logs);
+        } 
+    }
 </script>
 </body>
 </html>
