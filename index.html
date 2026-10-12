@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-Meal Sugar Tracker</title>
+    <!-- Native math engine library for rendering offline QR patterns directly inside layout canvas -->
+    <script src="https://cloudflare.com"></script>
     <style>
         :root { 
             --primary: #2563eb; 
@@ -45,12 +47,16 @@
             border: 1px dashed #cbd5e1;
             text-align: center;
         }
-        .qr-img {
-            margin: 10px auto;
-            display: block;
-            background: white;
+        .qr-wrapper {
+            display: flex;
+            justify-content: center;
+            margin: 12px 0;
+        }
+        #qrcode canvas, #qrcode img {
             padding: 8px;
+            background: white;
             border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
@@ -67,11 +73,13 @@
     
     <div id="status" class="status-msg"></div>
 
-    <!-- QR Sync Box -->
+    <!-- QR Container Grid -->
     <div class="qr-box">
         <label style="margin-bottom:2px;">📲 Sync Data to Mobile / Device</label>
-        <span style="font-size:11px; color:#64748b;">Scan this code with your other device's camera to sync immediately</span>
-        <img id="qrElement" class="qr-img" src="" alt="QR Code" width="150" height="150">
+        <span style="font-size:11px; color:#64748b;">Scan this code with your phone's camera to sync history instantly</span>
+        <div class="qr-wrapper">
+            <div id="qrcode"></div>
+        </div>
     </div>
 
     <div class="form-group"><label for="date">Date</label><input type="date" id="date" required></div>
@@ -90,11 +98,12 @@
 
 <script>
     let logs = JSON.parse(localStorage.getItem('sugarLogs')) || [];
+    let qrcodeInstance = null;
     
     window.onload = function() { 
         document.getElementById('date').value = new Date().toISOString().split('T')[0]; 
         
-        // Check if loading data from a scanned URL query
+        // Dynamic import checking via query structures
         const urlParams = new URLSearchParams(window.location.search);
         const importedData = urlParams.get('syncData');
         if (importedData) {
@@ -103,7 +112,7 @@
                 if (Array.isArray(decodedLogs) && confirm(`Found ${decodedLogs.length} entries. Sync history to this device?`)) {
                     logs = decodedLogs;
                     localStorage.setItem('sugarLogs', JSON.stringify(logs));
-                    // Clean up URL parameters
+                    // Cleanup cleanly
                     window.history.replaceState({}, document.title, window.location.pathname);
                     showStatus('✅ History Synced Successfully!');
                 }
@@ -124,9 +133,18 @@
         const dataString = encodeURIComponent(JSON.stringify(logs));
         const finalSyncUrl = `${baseUrl}?syncData=${dataString}`;
         
-        // Generates QR instantly using native free tiny api router
-        const qrApiUrl = `https://qrserver.com{encodeURIComponent(finalSyncUrl)}`;
-        document.getElementById('qrElement').src = qrApiUrl;
+        // Clean out structure to guarantee redraw
+        document.getElementById('qrcode').innerHTML = '';
+        
+        // Generates completely native matrix offline pattern
+        qrcodeInstance = new QRCode(document.getElementById("qrcode"), {
+            text: finalSyncUrl,
+            width: 160,
+            height: 160,
+            colorDark : "#0f172a",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.L // Low configuration to fit large array lengths compactly
+        });
     }
 
     function renderHistory() {
