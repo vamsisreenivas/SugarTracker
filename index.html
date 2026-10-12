@@ -38,7 +38,6 @@
         button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
         button:hover { background-color: #1d4ed8; }
         
-        /* Ecosystem Sync Box Layout */
         .sync-panel { 
             background: #f1f5f9; 
             padding: 16px; 
@@ -50,11 +49,17 @@
             display: flex;
             gap: 10px;
             margin-top: 8px;
+            margin-bottom: 12px;
         }
         .sync-btn-group button {
             margin-bottom: 0;
             padding: 10px;
             font-size: 14px;
+        }
+        .paste-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
         }
         
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
@@ -74,11 +79,18 @@
     <!-- Apple Ecosystem Cross-Browser Data Sync Box -->
     <div class="sync-panel">
         <label style="margin-bottom:2px;">🔄 Device Link &amp; Sync Panel</label>
-        <span style="font-size:11px; color:#64748b; display:block; margin-bottom:10px;">Move your logs instantly from Mac Chrome to iPhone Safari.</span>
+        <span style="font-size:11px; color:#64748b; display:block;">Move your logs instantly from Mac Chrome to iPhone Safari.</span>
         
         <div class="sync-btn-group">
             <button style="background-color: #475569;" onclick="copySyncCode()">📋 1. Copy Log Code on Mac</button>
-            <button style="background-color: #0d9488;" onclick="pasteSyncCode()">📥 2. Import Code on iPhone</button>
+            <button style="background-color: #0d9488;" onclick="pasteSyncCode()">📥 2. Auto Import on iPhone</button>
+        </div>
+
+        <!-- Manual Paste Box Fallback (Now Added) -->
+        <label for="manualPasteInput" style="font-size: 12px; font-weight: normal; margin-top: 8px; color: #475569;">If Auto Import is blocked, paste code manually here:</label>
+        <div class="paste-group">
+            <input type="text" id="manualPasteInput" placeholder="Tap here, paste the copied text, then click Apply">
+            <button style="width: auto; background-color: #16a34a; white-space: nowrap; margin-bottom: 0;" onclick="applyManualCode()">Apply</button>
         </div>
     </div>
 
@@ -118,9 +130,9 @@
         }
         const tokenStr = btoa(unescape(encodeURIComponent(JSON.stringify(logs))));
         navigator.clipboard.writeText(tokenStr).then(() => {
-            showStatus("✅ Copied! Now open iPhone Safari and click Import.");
+            showStatus("✅ Copied! Now open iPhone Safari and click Import or Paste it.");
         }).catch(() => {
-            alert("Failed to access clipboard automatically. Please try again.");
+            alert("Failed to access clipboard automatically. Please copy manually.");
         });
     }
 
@@ -131,10 +143,27 @@
                 alert("Your clipboard is empty! Make sure you clicked 'Copy Log Code' on your Mac first.");
                 return;
             }
+            processDecodedText(rawText);
+        } catch(e) {
+            alert("Auto Import blocked by browser security. Please use the 'paste code manually' box below instead!");
+        }
+    }
+
+    function applyManualCode() {
+        const rawText = document.getElementById('manualPasteInput').value.trim();
+        if(!rawText) {
+            alert("Please paste the code into the text box first!");
+            return;
+        }
+        processDecodedText(rawText);
+        document.getElementById('manualPasteInput').value = ''; // Clean up field
+    }
+
+    function processDecodedText(rawText) {
+        try {
             const decodedData = JSON.parse(decodeURIComponent(escape(atob(rawText.trim()))));
             if(Array.isArray(decodedData)) {
-                if(confirm(`Found ${decodedData.length} records. Merge with this device?`)) {
-                    // Combines logs uniquely keeping records intact
+                if(confirm(`Found ${decodedData.length} records. Sync history to this device?`)) {
                     logs = decodedData;
                     localStorage.setItem('sugarLogs', JSON.stringify(logs));
                     renderHistory();
@@ -144,7 +173,7 @@
                 showStatus("❌ Invalid code layout detected.", true);
             }
         } catch(e) {
-            alert("To import, tap the screen once, give Safari permission to paste, or ensure your Mac copy was successful.");
+            showStatus("❌ Failed to decode text code.", true);
         }
     }
 
