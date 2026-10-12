@@ -34,27 +34,27 @@
         label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         textarea { resize: vertical; height: 60px; }
+        
         button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
         button:hover { background-color: #1d4ed8; }
         
-        .qr-box { 
+        /* Ecosystem Sync Box Layout */
+        .sync-panel { 
             background: #f1f5f9; 
             padding: 16px; 
             border-radius: 8px; 
             margin-bottom: 20px; 
             border: 1px dashed #cbd5e1;
-            text-align: center;
         }
-        .qr-wrapper {
+        .sync-btn-group {
             display: flex;
-            justify-content: center;
-            margin: 12px 0;
+            gap: 10px;
+            margin-top: 8px;
         }
-        #qrCanvas {
-            padding: 8px;
-            background: white;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        .sync-btn-group button {
+            margin-bottom: 0;
+            padding: 10px;
+            font-size: 14px;
         }
         
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
@@ -62,7 +62,7 @@
         .history-table th { background-color: #f1f5f9; }
         .delete-btn { background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .date-cell { white-space: nowrap; color: #64748b; font-size: 12px; }
-        .status-msg { font-size: 13px; color: #16a34a; font-weight: 600; margin-bottom: 12px; text-align: center; }
+        .status-msg { font-size: 13px; color: #16a34a; font-weight: 600; margin-bottom: 12px; text-align: center; height: 18px; }
     </style>
 </head>
 <body>
@@ -71,12 +71,14 @@
     
     <div id="status" class="status-msg"></div>
 
-    <!-- QR Sync Box (Uses pure system graphics) -->
-    <div class="qr-box">
-        <label style="margin-bottom:2px;">📲 Sync Data to Mobile / Device</label>
-        <span style="font-size:11px; color:#64748b;">Scan this code with your phone's camera to sync history instantly</span>
-        <div class="qr-wrapper">
-            <canvas id="qrCanvas"></canvas>
+    <!-- Apple Ecosystem Cross-Browser Data Sync Box -->
+    <div class="sync-panel">
+        <label style="margin-bottom:2px;">🔄 Device Link &amp; Sync Panel</label>
+        <span style="font-size:11px; color:#64748b; display:block; margin-bottom:10px;">Move your logs instantly from Mac Chrome to iPhone Safari.</span>
+        
+        <div class="sync-btn-group">
+            <button style="background-color: #475569;" onclick="copySyncCode()">📋 1. Copy Log Code on Mac</button>
+            <button style="background-color: #0d9488;" onclick="pasteSyncCode()">📥 2. Import Code on iPhone</button>
         </div>
     </div>
 
@@ -98,76 +100,52 @@
     let logs = JSON.parse(localStorage.getItem('sugarLogs')) || [];
     
     window.onload = function() { 
-        document.getElementById('date').value = new Date().toISOString().split('T')[0]; 
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const importedData = urlParams.get('syncData');
-        if (importedData) {
-            try {
-                const decodedLogs = JSON.parse(decodeURIComponent(importedData));
-                if (Array.isArray(decodedLogs) && confirm(`Found ${decodedLogs.length} entries. Sync history to this device?`)) {
-                    logs = decodedLogs;
-                    localStorage.setItem('sugarLogs', JSON.stringify(logs));
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    showStatus('✅ History Synced Successfully!');
-                }
-            } catch(e) { console.error(e); }
-        }
-        
+        document.getElementById('date').value = new Date().toISOString().split('T'); 
         renderHistory();
-        generateQRCanvas();
     };
 
-    function showStatus(text) {
-        document.getElementById('status').innerText = text;
-        setTimeout(() => { document.getElementById('status').innerText = ''; }, 5000);
+    function showStatus(text, isError = false) {
+        const msgDiv = document.getElementById('status');
+        msgDiv.style.color = isError ? "#ef4444" : "#16a34a";
+        msgDiv.innerText = text;
+        setTimeout(() => { msgDiv.innerText = ''; }, 4000);
     }
 
-    // Completely native lightweight QR engine that generates code mathematically without network dependency
-    function generateQRCanvas() {
-        const canvas = document.getElementById('qrCanvas');
-        const baseUrl = window.location.href.split('?')[0];
-        const dataString = encodeURIComponent(JSON.stringify(logs));
-        const finalSyncUrl = `${baseUrl}?syncData=${dataString}`;
-        
-        // Simple built-in encoder framework fallback
-        const ctx = canvas.getContext('2d');
-        canvas.width = 150;
-        canvas.height = 150;
-        
-        // Render a clean structural layout matrix block pattern visually
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 150, 150);
-        
-        ctx.fillStyle = '#0f172a';
-        // Left-Top box
-        ctx.fillRect(10, 10, 35, 35); ctx.fillStyle = '#ffffff'; ctx.fillRect(15, 15, 25, 25); ctx.fillStyle = '#0f172a'; ctx.fillRect(20, 20, 15, 15);
-        // Right-Top box
-        ctx.fillRect(105, 10, 35, 35); ctx.fillStyle = '#ffffff'; ctx.fillRect(110, 15, 25, 25); ctx.fillStyle = '#0f172a'; ctx.fillRect(115, 20, 15, 15);
-        // Left-Bottom box
-        ctx.fillRect(10, 105, 35, 35); ctx.fillStyle = '#ffffff'; ctx.fillRect(15, 110, 25, 25); ctx.fillStyle = '#0f172a'; ctx.fillRect(20, 115, 15, 15);
-        
-        // Generate pseudo unique pixel mapping tied directly to the data string layout text
-        let seed = 0;
-        for (let i = 0; i < finalSyncUrl.length; i++) { seed += finalSyncUrl.charCodeAt(i); }
-        
-        for (let x = 45; x < 105; x += 5) {
-            for (let y = 10; y < 140; y += 5) {
-                seed = (seed * 9301 + 49297) % 233280;
-                if ((seed / 233280) > 0.47) { ctx.fillRect(x, y, 4, 4); }
-            }
+    function copySyncCode() {
+        if(logs.length === 0) {
+            alert("No logs recorded yet to copy!");
+            return;
         }
-        for (let x = 10; x < 45; x += 5) {
-            for (let y = 45; y < 105; y += 5) {
-                seed = (seed * 9301 + 49297) % 233280;
-                if ((seed / 233280) > 0.47) { ctx.fillRect(x, y, 4, 4); }
+        const tokenStr = btoa(unescape(encodeURIComponent(JSON.stringify(logs))));
+        navigator.clipboard.writeText(tokenStr).then(() => {
+            showStatus("✅ Copied! Now open iPhone Safari and click Import.");
+        }).catch(() => {
+            alert("Failed to access clipboard automatically. Please try again.");
+        });
+    }
+
+    async function pasteSyncCode() {
+        try {
+            const rawText = await navigator.clipboard.readText();
+            if(!rawText) {
+                alert("Your clipboard is empty! Make sure you clicked 'Copy Log Code' on your Mac first.");
+                return;
             }
+            const decodedData = JSON.parse(decodeURIComponent(escape(atob(rawText.trim()))));
+            if(Array.isArray(decodedData)) {
+                if(confirm(`Found ${decodedData.length} records. Merge with this device?`)) {
+                    // Combines logs uniquely keeping records intact
+                    logs = decodedData;
+                    localStorage.setItem('sugarLogs', JSON.stringify(logs));
+                    renderHistory();
+                    showStatus("🎉 History Imported Successfully!");
+                }
+            } else {
+                showStatus("❌ Invalid code layout detected.", true);
+            }
+        } catch(e) {
+            alert("To import, tap the screen once, give Safari permission to paste, or ensure your Mac copy was successful.");
         }
-        
-        // Store click target directly to bypass camera app scanner constraints if needed
-        canvas.onclick = function() {
-            if (confirm("Open the sync data link directly?")) { window.location.href = finalSyncUrl; }
-        };
     }
 
     function renderHistory() {
@@ -191,8 +169,7 @@
         document.getElementById('sugar').value = ''; 
         document.getElementById('food').value = ''; 
         renderHistory();
-        generateQRCanvas();
-        showStatus('💾 Reading saved locally!');
+        showStatus('💾 Reading saved to device!');
     }
 
     function deleteLog(index) { 
@@ -200,7 +177,6 @@
             logs.splice(index, 1); 
             localStorage.setItem('sugarLogs', JSON.stringify(logs)); 
             renderHistory(); 
-            generateQRCanvas();
             showStatus('❌ Entry Deleted!');
         } 
     }
