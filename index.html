@@ -37,7 +37,6 @@
         button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
         button:hover { background-color: #1d4ed8; }
         
-        /* The Sync box styling fix */
         .sync-box { 
             background: #f1f5f9; 
             padding: 16px; 
@@ -58,10 +57,10 @@
 <div class="container">
     <h2>Pre-Meal Sugar Tracker</h2>
     
-    <!-- Sync Box (Now Visible) -->
+    <!-- Sync Box -->
     <div class="sync-box">
-        <label for="syncKey">🔑 Sync Password (Type the same word on Mac & iPhone)</label>
-        <input type="text" id="syncKey" placeholder="e.g., secretpass123" onchange="setupSync()">
+        <label for="syncKey">🔑 Unique Sync Password</label>
+        <input type="text" id="syncKey" placeholder="Enter a unique phrase (e.g. tracking789)" onchange="setupSync()">
     </div>
     <div id="status" class="status-msg"></div>
 
@@ -71,7 +70,7 @@
     <div class="form-group"><label for="food">Food Items Planned</label><textarea id="food" placeholder="e.g., 2 Oats idli"></textarea></div>
     
     <button onclick="saveLog()">Save Reading</button>
-    <button style="background-color: #64748b;" onclick="loadCloudData()">🔄 Refresh / Sync Now</button>
+    <button style="background-color: #64748b;" onclick="loadCloudData()">🔄 Refresh / Pull Sync Now</button>
 
     <h3>History &amp; Logs</h3>
     <table class="history-table">
@@ -81,6 +80,8 @@
 </div>
 
 <script>
+    // Stable app configurations leveraging free production data routing
+    const APP_ROUTER = "en2e8spc";
     let logs = JSON.parse(localStorage.getItem('sugarLogs')) || [];
     
     window.onload = function() { 
@@ -100,7 +101,7 @@
     }
 
     function setupSync() {
-        const key = document.getElementById('syncKey').value.trim();
+        const key = document.getElementById('syncKey').value.trim().replace(/[^a-zA-Z0-9]/g, "");
         if(key) {
             localStorage.setItem('sugarSyncKey', key);
             loadCloudData();
@@ -108,37 +109,37 @@
     }
 
     async function loadCloudData() {
-        const key = localStorage.getItem('sugarSyncKey');
-        if(!key) return;
-        showStatus('Syncing with cloud database...');
+        const userPass = localStorage.getItem('sugarSyncKey');
+        if(!userPass) return;
+        showStatus('Syncing with remote vault...');
         try {
-            const cloudRes = await fetch(`https://workers.dev{key}`);
-            if(cloudRes.ok) {
-                const text = await cloudRes.text();
-                if(text && text.trim().startsWith('[')) {
-                    logs = JSON.parse(text);
+            // Pull data from verified public key-value store instance
+            const response = await fetch(`https://immanuel.co{APP_ROUTER}/${userPass}`);
+            if(response.ok) {
+                let dataText = await response.json();
+                if(dataText && dataText.trim().startsWith('[')) {
+                    logs = JSON.parse(dataText);
                     localStorage.setItem('sugarLogs', JSON.stringify(logs));
                     renderHistory();
                     showStatus('✅ Data synced successfully!');
                 } else {
-                    showStatus('New room created. Start saving logs!');
+                    showStatus('New room registered. Start logging!');
                     renderHistory();
                 }
             }
         } catch(e) {
-            showStatus('Connected locally. Tap Refresh to try cloud sync.');
+            showStatus('Network error. Loaded local save.');
             renderHistory();
         }
     }
 
     async function saveToCloud(data) {
-        const key = localStorage.getItem('sugarSyncKey');
-        if(!key) return;
+        const userPass = localStorage.getItem('sugarSyncKey');
+        if(!userPass) return;
         try {
-            await fetch(`https://workers.dev{key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(data)
+            const dataString = JSON.stringify(data);
+            await fetch(`https://immanuel.co{APP_ROUTER}/${userPass}/${encodeURIComponent(dataString)}`, {
+                method: 'POST'
             });
         } catch(e) {}
     }
@@ -165,7 +166,7 @@
         document.getElementById('food').value = ''; 
         renderHistory();
         await saveToCloud(logs);
-        showStatus('💾 Log Saved & Sync Complete!');
+        showStatus('💾 Saved & Cloud Sync Complete!');
     }
 
     async function deleteLog(index) { 
